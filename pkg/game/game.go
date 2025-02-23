@@ -3,6 +3,7 @@ package game
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/neokofg/mygame/pkg/components"
 	"github.com/neokofg/mygame/pkg/ecs"
 	"github.com/neokofg/mygame/pkg/entities"
 	"github.com/neokofg/mygame/pkg/systems"
@@ -23,6 +24,8 @@ func NewGame() *Game {
 		&systems.InputSystem{},
 		&systems.MovementSystem{},
 		&systems.RenderSystem{},
+		&systems.VelocitySystem{},
+		&systems.CameraSystem{},
 	}
 
 	return &Game{
@@ -33,13 +36,26 @@ func NewGame() *Game {
 func (g *Game) Update() error {
 	gameEntities := g.EntityManager.GetAllEntities()
 	for _, sys := range g.Systems {
-		if updateSys, ok := sys.(interface{ Update([]*ecs.Entity) }); ok {
+		if updateSys, ok := sys.(interface {
+			Update([]*ecs.Entity)
+		}); ok {
 			updateSys.Update(gameEntities)
 		}
 	}
 	return nil
 }
 func (g *Game) Draw(screen *ebiten.Image) {
+	gameEntities := g.EntityManager.GetAllEntities()
+
+	var cameraGeoM ebiten.GeoM
+	for _, entity := range gameEntities {
+		if entity.HasComponent("Camera") {
+			camera := entity.GetComponent("Camera").(*components.Camera)
+			camera.ApplyTransform(&cameraGeoM)
+			break
+		}
+	}
+
 	floorTile, _, err := ebitenutil.NewImageFromFile("pkg/assets/sprites/floor.png")
 	if err != nil {
 		log.Fatal(err)
@@ -49,17 +65,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for x := 0; x < 800; x += tileWidth {
 		for y := 0; y < 600; y += tileHeight {
 			op := &ebiten.DrawImageOptions{}
+			op.GeoM = cameraGeoM
 			op.GeoM.Translate(float64(x), float64(y))
 			screen.DrawImage(floorTile, op)
 		}
 	}
 
-	gameEntities := g.EntityManager.GetAllEntities()
 	for _, sys := range g.Systems {
 		if drawSys, ok := sys.(interface {
-			Draw(*ebiten.Image, []*ecs.Entity)
+			Draw(*ebiten.Image, []*ecs.Entity, ebiten.GeoM)
 		}); ok {
-			drawSys.Draw(screen, gameEntities)
+			drawSys.Draw(screen, gameEntities, cameraGeoM)
 		}
 	}
 }

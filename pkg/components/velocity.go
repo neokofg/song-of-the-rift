@@ -1,5 +1,5 @@
 package components
 
 type Velocity struct {
-	X, Y float64
+	X, Y, MaxSpeed float64
 }
