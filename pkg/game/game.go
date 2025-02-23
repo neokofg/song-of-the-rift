@@ -3,48 +3,65 @@ package game
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/neokofg/mygame/pkg/ecs"
 	"github.com/neokofg/mygame/pkg/entities"
+	"github.com/neokofg/mygame/pkg/systems"
 	"log"
 )
 
 type Game struct {
-	Player  *entities.Player
-	Floor   *ebiten.Image
-	CameraX float64
-	CameraY float64
+	EntityManager *ecs.EntityManager
+	Systems       []interface{}
 }
 
 func NewGame() *Game {
-	floorImg, _, err := ebitenutil.NewImageFromFile("pkg/assets/sprites/floor.png")
-	if err != nil {
-		log.Fatal(err)
+	em := ecs.NewEntityManager()
+
+	entities.NewPlayer(em)
+
+	gameSystems := []interface{}{
+		&systems.InputSystem{},
+		&systems.MovementSystem{},
+		&systems.RenderSystem{},
 	}
+
 	return &Game{
-		Player: entities.NewPlayer(),
-		Floor:  floorImg,
+		EntityManager: em,
+		Systems:       gameSystems,
 	}
 }
 func (g *Game) Update() error {
-	g.Player.Update()
-	g.CameraX = g.Player.X - 400
-	g.CameraY = g.Player.Y - 300
+	gameEntities := g.EntityManager.GetAllEntities()
+	for _, sys := range g.Systems {
+		if updateSys, ok := sys.(interface{ Update([]*ecs.Entity) }); ok {
+			updateSys.Update(gameEntities)
+		}
+	}
 	return nil
 }
 func (g *Game) Draw(screen *ebiten.Image) {
-	tileWidth := 64.0
-	tileHeight := 64.0
-
-	for x := -tileWidth; x < 800; x += tileWidth {
-		for y := -tileHeight; y < 600; y += tileHeight {
+	floorTile, _, err := ebitenutil.NewImageFromFile("pkg/assets/sprites/floor.png")
+	if err != nil {
+		log.Fatal(err)
+	}
+	tileWidth := 64
+	tileHeight := 64
+	for x := 0; x < 800; x += tileWidth {
+		for y := 0; y < 600; y += tileHeight {
 			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(x-g.CameraX, y-g.CameraY)
-			screen.DrawImage(g.Floor, op)
+			op.GeoM.Translate(float64(x), float64(y))
+			screen.DrawImage(floorTile, op)
 		}
 	}
 
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(400, 300)
-	screen.DrawImage(g.Player.Image, op)
+	gameEntities := g.EntityManager.GetAllEntities()
+	for _, sys := range g.Systems {
+		if drawSys, ok := sys.(interface {
+			Draw(*ebiten.Image, []*ecs.Entity)
+		}); ok {
+			drawSys.Draw(screen, gameEntities)
+		}
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

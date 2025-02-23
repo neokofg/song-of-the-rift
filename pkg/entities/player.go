@@ -2,46 +2,36 @@ package entities
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"log"
+	"github.com/neokofg/mygame/pkg/components"
+	"github.com/neokofg/mygame/pkg/ecs"
+	"image/color"
 )
 
 type Player struct {
-	X, Y  float64
-	Speed float64
-	Image *ebiten.Image
+	entity *ecs.Entity
 }
 
-func NewPlayer() *Player {
-	img, _, err := ebitenutil.NewImageFromFile("pkg/assets/sprites/player.png")
-	if err != nil {
-		log.Fatal(err)
-	}
+func NewPlayer(em *ecs.EntityManager) *Player {
+	player := em.CreateEntity()
+	player.AddComponent("Position", &components.Position{X: 400, Y: 300})
+	player.AddComponent("Velocity", &components.Velocity{X: 5, Y: 5})
+	playerColor := color.RGBA{135, 206, 235, 255}
+	playerImage := ebiten.NewImage(32, 32)
+	playerImage.Fill(playerColor)
+	player.AddComponent("Render", &components.Render{Image: playerImage})
+	input := components.NewInput(map[ebiten.Key]string{
+		ebiten.KeyW: "moveUp",
+		ebiten.KeyS: "moveDown",
+		ebiten.KeyA: "moveLeft",
+		ebiten.KeyD: "moveRight",
+	})
+	player.AddComponent("Input", input)
+
 	return &Player{
-		X:     400,
-		Y:     300,
-		Speed: 5,
-		Image: img,
+		entity: player,
 	}
 }
 
-func (p *Player) Update() {
-	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		p.Y -= p.Speed
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		p.Y += p.Speed
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		p.X -= p.Speed
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		p.X += p.Speed
-	}
-}
-
-func (p *Player) Draw(screen *ebiten.Image) {
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(p.X, p.Y)
-	screen.DrawImage(p.Image, op)
+func (p *Player) GetEntity() *ecs.Entity {
+	return p.entity
 }
