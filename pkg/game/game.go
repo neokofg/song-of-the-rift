@@ -35,8 +35,15 @@ func NewGame() *Game {
 	level1 := &leveling.Level{
 		ID: 1,
 		CreateEntities: func(em *ecs.EntityManager) []*ecs.Entity {
+			tileMap := mapping.CreateTileMapEntity(em, 100, 100)
+
 			player := entities.NewPlayer(em)
-			tileMap := mapping.CreateTileMapEntity(em, 10, 10)
+			spawnPoint := tileMap.GetComponent("SpawnPoint").(struct{ X, Y int })
+			playerPos := player.GetComponent("Position").(*components.Position)
+			tileSize := 64
+			playerPos.X = float64(spawnPoint.X * tileSize)
+			playerPos.Y = float64(spawnPoint.Y * tileSize)
+			
 			return []*ecs.Entity{player, tileMap}
 		},
 	}
