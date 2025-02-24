@@ -7,11 +7,7 @@ import (
 	"image/color"
 )
 
-type Player struct {
-	entity *ecs.Entity
-}
-
-func NewPlayer(em *ecs.EntityManager) *Player {
+func NewPlayer(em *ecs.EntityManager) *ecs.Entity {
 	player := em.CreateEntity()
 	player.AddComponent("Position", &components.Position{X: 400, Y: 300})
 	player.AddComponent("Velocity", &components.Velocity{X: 0, Y: 0, MaxSpeed: 150, DashCooldown: 1, DashTimer: 0})
@@ -33,11 +29,5 @@ func NewPlayer(em *ecs.EntityManager) *Player {
 		DeadZoneWidth: 75, DeadZoneHeight: 75, Smoothness: 0.1,
 	})
 
-	return &Player{
-		entity: player,
-	}
-}
-
-func (p *Player) GetEntity() *ecs.Entity {
-	return p.entity
+	return player
 }
