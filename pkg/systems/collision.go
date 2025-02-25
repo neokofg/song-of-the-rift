@@ -7,149 +7,162 @@ import (
 	"math"
 )
 
+// CollisionSystem обрабатывает столкновения между сущностями и с тайлами.
 type CollisionSystem struct{}
 
+// Update обновляет позиции сущностей с учетом столкновений.
 func (cs *CollisionSystem) Update(entities []*ecs.Entity) {
-	const (
-		tileSize     = 64
-		playerWidth  = 32
-		playerHeight = 32
-	)
+	const tileSize = 64 // Размер тайла (предполагается, что тайлы квадратные)
 
+	// Сначала обрабатываем столкновения с тайлами
 	for _, entity := range entities {
-		if entity.HasComponent("Position") && entity.HasComponent("Velocity") {
+		if entity.HasComponent("Position") && entity.HasComponent("Collision") {
 			pos := entity.GetComponent("Position").(*components.Position)
-			vel := entity.GetComponent("Velocity").(*components.Velocity)
+			coll := entity.GetComponent("Collision").(*components.Collision)
+			if coll.Type == components.Solid {
+				cs.resolveTileCollisions(entities, pos, coll.Width, coll.Height, tileSize)
+			}
+		}
+	}
 
-			// Целевая позиция
-			targetX := pos.X + vel.X
-			targetY := pos.Y + vel.Y
-
-			// Проверяем коллизии по X
-			if vel.X != 0 {
-				newX := targetX
-				tileXLeft := int(math.Floor(newX / float64(tileSize)))
-				tileXRight := int(math.Floor((newX + float64(playerWidth-1)) / float64(tileSize)))
-				tileYTop := int(math.Floor(pos.Y / float64(tileSize)))
-				tileYBottom := int(math.Floor((pos.Y + float64(playerHeight-1)) / float64(tileSize)))
-
-				if vel.X > 0 {
-					if cs.checkCollision(entities, tileXRight, tileYTop) || cs.checkCollision(entities, tileXRight, tileYBottom) {
-						pos.X = float64(tileXRight*tileSize) - float64(playerWidth)
-						vel.X = 0
-					} else {
-						pos.X = newX
-					}
-				} else if vel.X < 0 {
-					if cs.checkCollision(entities, tileXLeft, tileYTop) || cs.checkCollision(entities, tileXLeft, tileYBottom) {
-						pos.X = float64((tileXLeft + 1) * tileSize)
-						vel.X = 0
-					} else {
-						pos.X = newX
+	// Затем обрабатываем столкновения между сущностями
+	for i, e1 := range entities {
+		if e1.HasComponent("Position") && e1.HasComponent("Collision") {
+			pos1 := e1.GetComponent("Position").(*components.Position)
+			coll1 := e1.GetComponent("Collision").(*components.Collision)
+			for j := i + 1; j < len(entities); j++ {
+				e2 := entities[j]
+				if e2.HasComponent("Position") && e2.HasComponent("Collision") {
+					pos2 := e2.GetComponent("Position").(*components.Position)
+					coll2 := e2.GetComponent("Collision").(*components.Collision)
+					if coll1.Type == components.Solid && coll2.Type == components.Solid {
+						cs.resolveEntityCollision(pos1, coll1, pos2, coll2)
+					} else if coll1.Type == components.Trigger || coll2.Type == components.Trigger {
+						// Обработка триггеров
+						if cs.checkOverlap(pos1, coll1, pos2, coll2) {
+							// Вызвать событие триггера
+							// Например, можно добавить компонент или вызвать метод
+						}
 					}
 				}
 			}
-
-			// Проверяем коллизии по Y
-			if vel.Y != 0 {
-				newY := targetY
-				tileYTop := int(math.Floor(newY / float64(tileSize)))
-				tileYBottom := int(math.Floor((newY + float64(playerHeight-1)) / float64(tileSize)))
-				tileXLeft := int(math.Floor(pos.X / float64(tileSize)))
-				tileXRight := int(math.Floor((pos.X + float64(playerWidth-1)) / float64(tileSize)))
-
-				if vel.Y > 0 {
-					if cs.checkCollision(entities, tileXLeft, tileYBottom) || cs.checkCollision(entities, tileXRight, tileYBottom) {
-						pos.Y = float64(tileYBottom*tileSize) - float64(playerHeight)
-						vel.Y = 0
-					} else {
-						pos.Y = newY
-					}
-				} else if vel.Y < 0 {
-					if cs.checkCollision(entities, tileXLeft, tileYTop) || cs.checkCollision(entities, tileXRight, tileYTop) {
-						pos.Y = float64((tileYTop + 1) * tileSize)
-						vel.Y = 0
-					} else {
-						pos.Y = newY
-					}
-				}
-			}
-
-			// Выталкиваем игрока, если он оказался внутри стены
-			cs.resolveOverlap(entities, pos, playerWidth, playerHeight, tileSize)
 		}
 	}
 }
 
-func (cs *CollisionSystem) checkCollision(entities []*ecs.Entity, tileX, tileY int) bool {
-	for _, e := range entities {
-		if e.HasComponent("TileMap") {
-			tileMap := e.GetComponent("TileMap").(*mapping.TileMap)
-			if tileX >= 0 && tileX < tileMap.Width && tileY >= 0 && tileY < tileMap.Height {
-				tile := tileMap.Tiles[tileY][tileX]
-				return !tile.Passable
-			}
-		}
-	}
-	return true // По умолчанию считаем тайл непроходимым, если он вне карты
-}
-
-func (cs *CollisionSystem) resolveOverlap(entities []*ecs.Entity, pos *components.Position, playerWidth, playerHeight, tileSize int) {
-	tileXLeft := int(math.Floor(pos.X / float64(tileSize)))
-	tileXRight := int(math.Floor((pos.X + float64(playerWidth-1)) / float64(tileSize)))
-	tileYTop := int(math.Floor(pos.Y / float64(tileSize)))
-	tileYBottom := int(math.Floor((pos.Y + float64(playerHeight-1)) / float64(tileSize)))
-
-	// Проверяем пересечение с тайлами
-	overlapping := false
-	for x := tileXLeft; x <= tileXRight; x++ {
-		for y := tileYTop; y <= tileYBottom; y++ {
-			if cs.checkCollision(entities, x, y) {
-				overlapping = true
-				break
-			}
-		}
-	}
-
-	if !overlapping {
+// resolveTileCollisions корректирует позицию сущности, чтобы она не пересекалась с непроходимыми тайлами.
+func (cs *CollisionSystem) resolveTileCollisions(entities []*ecs.Entity, pos *components.Position, width, height, tileSize int) {
+	tileMap := cs.getTileMap(entities)
+	if tileMap == nil {
 		return
 	}
 
-	// Направления выталкивания
-	directions := [][2]float64{
-		{0, -1}, // вверх
-		{0, 1},  // вниз
-		{-1, 0}, // влево
-		{1, 0},  // вправо
-	}
+	// Находим тайлы, с которыми пересекается bounding box сущности
+	minX := int(math.Floor(pos.X / float64(tileSize)))
+	maxX := int(math.Floor((pos.X + float64(width-1)) / float64(tileSize)))
+	minY := int(math.Floor(pos.Y / float64(tileSize)))
+	maxY := int(math.Floor((pos.Y + float64(height-1)) / float64(tileSize)))
 
-	step := float64(tileSize) / 4
-	for _, dir := range directions {
-		newX, newY := pos.X, pos.Y
-		for i := 0; i < 4; i++ {
-			newX += dir[0] * step
-			newY += dir[1] * step
-
-			tileXLeft = int(math.Floor(newX / float64(tileSize)))
-			tileXRight = int(math.Floor((newX + float64(playerWidth-1)) / float64(tileSize)))
-			tileYTop = int(math.Floor(newY / float64(tileSize)))
-			tileYBottom = int(math.Floor((newY + float64(playerHeight-1)) / float64(tileSize)))
-
-			overlap := false
-			for x := tileXLeft; x <= tileXRight; x++ {
-				for y := tileYTop; y <= tileYBottom; y++ {
-					if cs.checkCollision(entities, x, y) {
-						overlap = true
-						break
-					}
+	for x := minX; x <= maxX; x++ {
+		for y := minY; y <= maxY; y++ {
+			if x >= 0 && x < tileMap.Width && y >= 0 && y < tileMap.Height {
+				tile := tileMap.Tiles[y][x]
+				if !tile.Passable {
+					// Находим пересечение и корректируем позицию
+					cs.pushOutOfTile(pos, width, height, x, y, tileSize)
 				}
-			}
-
-			if !overlap {
-				pos.X = newX
-				pos.Y = newY
-				return
 			}
 		}
 	}
+}
+
+// pushOutOfTile выталкивает сущность из тайла в наименьшем направлении.
+func (cs *CollisionSystem) pushOutOfTile(pos *components.Position, width, height, tileX, tileY, tileSize int) {
+	entityLeft := pos.X
+	entityRight := pos.X + float64(width)
+	entityTop := pos.Y
+	entityBottom := pos.Y + float64(height)
+
+	tileLeft := float64(tileX * tileSize)
+	tileRight := float64((tileX + 1) * tileSize)
+	tileTop := float64(tileY * tileSize)
+	tileBottom := float64((tileY + 1) * tileSize)
+
+	overlapLeft := entityRight - tileLeft
+	overlapRight := tileRight - entityLeft
+	overlapTop := entityBottom - tileTop
+	overlapBottom := tileBottom - entityTop
+
+	overlaps := []float64{overlapLeft, overlapRight, overlapTop, overlapBottom}
+	minOverlap := overlapLeft
+	for _, overlap := range overlaps {
+		if overlap < minOverlap {
+			minOverlap = overlap
+		}
+	}
+
+	if minOverlap == overlapLeft {
+		pos.X -= minOverlap
+	} else if minOverlap == overlapRight {
+		pos.X += minOverlap
+	} else if minOverlap == overlapTop {
+		pos.Y -= minOverlap
+	} else if minOverlap == overlapBottom {
+		pos.Y += minOverlap
+	}
+}
+
+// resolveEntityCollision корректирует позиции двух сущностей, чтобы они не пересекались.
+func (cs *CollisionSystem) resolveEntityCollision(pos1 *components.Position, coll1 *components.Collision, pos2 *components.Position, coll2 *components.Collision) {
+	if cs.checkOverlap(pos1, coll1, pos2, coll2) {
+		// Находим пересечение
+		overlapX, overlapY := cs.getOverlap(pos1, coll1, pos2, coll2)
+
+		// Определяем направление выталкивания
+		if math.Abs(overlapX) < math.Abs(overlapY) {
+			if pos1.X < pos2.X {
+				pos1.X -= overlapX / 2
+				pos2.X += overlapX / 2
+			} else {
+				pos1.X += overlapX / 2
+				pos2.X -= overlapX / 2
+			}
+		} else {
+			if pos1.Y < pos2.Y {
+				pos1.Y -= overlapY / 2
+				pos2.Y += overlapY / 2
+			} else {
+				pos1.Y += overlapY / 2
+				pos2.Y -= overlapY / 2
+			}
+		}
+	}
+}
+
+func (cs *CollisionSystem) checkOverlap(pos1 *components.Position, coll1 *components.Collision, pos2 *components.Position, coll2 *components.Collision) bool {
+	return pos1.X < pos2.X+float64(coll2.Width) &&
+		pos1.X+float64(coll1.Width) > pos2.X &&
+		pos1.Y < pos2.Y+float64(coll2.Height) &&
+		pos1.Y+float64(coll1.Height) > pos2.Y
+}
+
+func (cs *CollisionSystem) getOverlap(pos1 *components.Position, coll1 *components.Collision, pos2 *components.Position, coll2 *components.Collision) (float64, float64) {
+	overlapX := math.Min(pos1.X+float64(coll1.Width), pos2.X+float64(coll2.Width)) - math.Max(pos1.X, pos2.X)
+	overlapY := math.Min(pos1.Y+float64(coll1.Height), pos2.Y+float64(coll2.Height)) - math.Max(pos1.Y, pos2.Y)
+	if pos1.X < pos2.X {
+		overlapX = -overlapX
+	}
+	if pos1.Y < pos2.Y {
+		overlapY = -overlapY
+	}
+	return overlapX, overlapY
+}
+
+func (cs *CollisionSystem) getTileMap(entities []*ecs.Entity) *mapping.TileMap {
+	for _, e := range entities {
+		if e.HasComponent("TileMap") {
+			return e.GetComponent("TileMap").(*mapping.TileMap)
+		}
+	}
+	return nil
 }

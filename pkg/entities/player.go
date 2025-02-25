@@ -9,8 +9,10 @@ import (
 
 func NewPlayer(em *ecs.EntityManager) *ecs.Entity {
 	player := em.CreateEntity()
-	player.AddComponent("Position", &components.Position{X: 400, Y: 300})
+	player.AddComponent("Playable", &components.Playable{})
+	player.AddComponent("Position", &components.Position{X: 0, Y: 0})
 	player.AddComponent("Velocity", &components.Velocity{X: 0, Y: 0, MaxSpeed: 150, DashCooldown: 1, DashTimer: 0})
+	player.AddComponent("Collision", &components.Collision{Width: 32, Height: 32, Type: components.Solid})
 	playerColor := color.RGBA{135, 206, 235, 255}
 	playerImage := ebiten.NewImage(32, 32)
 	playerImage.Fill(playerColor)
@@ -25,7 +27,7 @@ func NewPlayer(em *ecs.EntityManager) *ecs.Entity {
 	})
 	player.AddComponent("Input", input)
 	player.AddComponent("Camera", &components.Camera{
-		X: 400, Y: 300, Width: 800, Height: 600, Zoom: 1,
+		X: 0, Y: 0, Width: 800, Height: 600, Zoom: 1,
 		DeadZoneWidth: 75, DeadZoneHeight: 75, Smoothness: 0.1,
 	})
 

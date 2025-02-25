@@ -7,7 +7,7 @@ import (
 
 type MovementSystem struct{}
 
-func (ms *MovementSystem) Update(entities []*ecs.Entity) {
+func (ms *MovementSystem) Update(entities []*ecs.Entity, deltaTime float64) {
 	for _, entity := range entities {
 		if entity.HasComponent("Position") && entity.HasComponent("Velocity") {
 			pos := entity.GetComponent("Position").(*components.Position)
@@ -18,8 +18,8 @@ func (ms *MovementSystem) Update(entities []*ecs.Entity) {
 			pos.PrevY = pos.Y
 
 			// Обновляем позицию
-			pos.X += vel.X
-			pos.Y += vel.Y
+			pos.X += vel.X * deltaTime
+			pos.Y += vel.Y * deltaTime
 		}
 	}
 }

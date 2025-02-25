@@ -10,6 +10,7 @@ import (
 	"github.com/neokofg/mygame/pkg/systems"
 	"log"
 	"math"
+	"math/rand"
 	"time"
 )
 
@@ -32,18 +33,37 @@ func NewGame() *Game {
 		CurrentEntities: []*ecs.Entity{},
 	}
 
+	player := entities.NewPlayer(em)
+	tileMap := mapping.CreateTileMapEntity(em, 20, 20)
+	tileMapComponent := tileMap.GetComponent("TileMap").(*mapping.TileMap)
+
 	level1 := &leveling.Level{
 		ID: 1,
 		CreateEntities: func(em *ecs.EntityManager) []*ecs.Entity {
-			tileMap := mapping.CreateTileMapEntity(em, 100, 100)
 
-			player := entities.NewPlayer(em)
 			spawnPoint := tileMap.GetComponent("SpawnPoint").(struct{ X, Y int })
 			playerPos := player.GetComponent("Position").(*components.Position)
 			tileSize := 64
 			playerPos.X = float64(spawnPoint.X * tileSize)
 			playerPos.Y = float64(spawnPoint.Y * tileSize)
-			
+
+			enemies := make([]*ecs.Entity, 0)
+			for i := 0; i < 3; i++ {
+				var x, y int
+				for {
+					x = rand.Intn(tileMapComponent.Width)
+					y = rand.Intn(tileMapComponent.Height)
+					if tileMapComponent.Tiles[y][x].Passable {
+						break
+					}
+				}
+				enemy := entities.NewEnemy(em)
+				enemyPos := enemy.GetComponent("Position").(*components.Position)
+				enemyPos.X = float64(x * tileSize)
+				enemyPos.Y = float64(y * tileSize)
+				enemies = append(enemies, enemy)
+			}
+
 			return []*ecs.Entity{player, tileMap}
 		},
 	}
@@ -57,6 +77,10 @@ func NewGame() *Game {
 		&systems.VelocitySystem{},
 		&systems.CollisionSystem{},
 		&systems.MovementSystem{},
+		&systems.EnemyAISystem{
+			TileMap: tileMapComponent,
+			Player:  player,
+		},
 	}
 	g := &Game{
 		EntityManager:  em,

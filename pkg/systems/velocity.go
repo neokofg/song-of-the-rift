@@ -6,15 +6,17 @@ import (
 	"math"
 )
 
+// VelocitySystem обновляет скорости сущностей на основе ввода.
 type VelocitySystem struct{}
 
+// Update обновляет скорости сущностей.
 func (vs *VelocitySystem) Update(entities []*ecs.Entity, deltaTime float64) {
 	for _, entity := range entities {
-		if entity.HasComponent("Input") && entity.HasComponent("Velocity") {
+		if entity.HasComponent("Input") && entity.HasComponent("Playable") && entity.HasComponent("Velocity") {
 			input := entity.GetComponent("Input").(*components.Input)
 			vel := entity.GetComponent("Velocity").(*components.Velocity)
 
-			// Обновляем таймер даша
+			// Обновляем таймер рывка
 			if vel.DashTimer > 0 {
 				vel.DashTimer -= deltaTime
 				if vel.DashTimer < 0 {
@@ -22,7 +24,7 @@ func (vs *VelocitySystem) Update(entities []*ecs.Entity, deltaTime float64) {
 				}
 			}
 
-			// Вычисляем направление
+			// Вычисляем направление движения
 			dirX, dirY := 0.0, 0.0
 			if input.Actions["moveUp"] {
 				dirY = -1.0
@@ -42,11 +44,11 @@ func (vs *VelocitySystem) Update(entities []*ecs.Entity, deltaTime float64) {
 				dirY /= magnitude
 			}
 
-			// Базовая скорость
+			// Устанавливаем базовую скорость
 			vel.X = dirX * vel.MaxSpeed
 			vel.Y = dirY * vel.MaxSpeed
 
-			// Применяем модификаторы
+			// Применяем модификаторы (спринт и рывок)
 			currentMaxSpeed := vel.MaxSpeed
 			if input.Actions["sprint"] {
 				currentMaxSpeed *= 1.5
@@ -67,10 +69,6 @@ func (vs *VelocitySystem) Update(entities []*ecs.Entity, deltaTime float64) {
 				vel.X *= factor
 				vel.Y *= factor
 			}
-
-			// Применяем deltaTime
-			vel.X *= deltaTime
-			vel.Y *= deltaTime
 
 			// Обновляем предыдущие действия
 			for key, value := range input.Actions {
